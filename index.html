@@ -63,7 +63,20 @@
     </section>
 
     <section class="panel game-shell">
+      <div class="screen-tools">
+        <button id="fitScreenBtn" class="fit-screen-btn" type="button">Fit Screen</button>
+      </div>
       <canvas id="gameCanvas" width="980" height="620" aria-label="Lagori game field"></canvas>
+      <p class="mobile-note">Mobile: drag on the field to throw. During rebuild, hold and drag your finger to move the runner.</p>
+      <div class="mobile-joystick" id="mobileJoystick" aria-label="Mobile joystick">
+        <div class="joystick-base" id="joystickBase">
+          <div class="joystick-knob" id="joystickKnob"></div>
+        </div>
+        <div class="joystick-copy">
+          <strong>Joystick Move</strong>
+          <span>Hold and drag to run during rebuild rounds.</span>
+        </div>
+      </div>
     </section>
 
     <section class="panel rules">
@@ -72,6 +85,7 @@
         <li>On your attack turn, drag from the ball and release to throw at the stone stack.</li>
         <li>You get up to 3 throws to knock the stack down.</li>
         <li>After a successful hit, move with <kbd>WASD</kbd> or arrow keys to collect stones and bring them back.</li>
+        <li>On mobile, drag on the field to throw, and use the joystick to move while rebuilding.</li>
         <li>The round is won immediately when either side rebuilds all 7 stones into the pillar.</li>
         <li>Higher levels add obstacles that can block throws, create ricochets, and give you cover to hide behind.</li>
         <li>The CPU throws from fixed spots and can only knock you out by hitting below the waist.</li>

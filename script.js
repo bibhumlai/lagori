@@ -14,6 +14,10 @@ const ui = {
   livesBadge: document.getElementById("livesBadge"),
   startBtn: document.getElementById("startBtn"),
   resetBtn: document.getElementById("resetBtn"),
+  fitScreenBtn: document.getElementById("fitScreenBtn"),
+  mobileJoystick: document.getElementById("mobileJoystick"),
+  joystickBase: document.getElementById("joystickBase"),
+  joystickKnob: document.getElementById("joystickKnob"),
 };
 
 const config = {
@@ -40,6 +44,9 @@ const normalize = (x, y) => {
 let lastTime = 0;
 let mouse = { x: 0, y: 0, down: false };
 let dragStart = null;
+let activeTouchId = null;
+let joystickTouchId = null;
+let joystickVector = { x: 0, y: 0 };
 
 const state = {
   started: false,
@@ -60,6 +67,7 @@ const state = {
   cpuThrowTimer: 0,
   playerThrowCooldown: 0,
   defenderSpotIndex: 0,
+  animationTime: 0,
 };
 
 function getLevelModifiers() {
@@ -242,6 +250,9 @@ function updateUi() {
   ui.playerScore.textContent = String(state.playerScore);
   ui.cpuScore.textContent = String(state.cpuScore);
   ui.levelSelect.value = String(state.level);
+  if (ui.fitScreenBtn) {
+    ui.fitScreenBtn.textContent = document.body.classList.contains("fit-screen") ? "Exit Fit" : "Fit Screen";
+  }
   ui.turnBadge.textContent =
     state.phase === "idle" ? "Turn: none" : `Turn: ${state.attacker === "player" ? "You attack" : "CPU attacks"}`;
   ui.triesBadge.textContent = `Throws left: ${state.attackThrowsLeft}`;
@@ -360,10 +371,13 @@ function stackedStoneCount() {
 function updatePlayerRebuild(dt) {
   const horizontal = (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0);
   const vertical = (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("w") ? 1 : 0);
-  const dir = normalize(horizontal, vertical);
   const modifiers = getLevelModifiers();
+  const moveX = horizontal + joystickVector.x;
+  const moveY = vertical + joystickVector.y;
 
-  if (horizontal || vertical) {
+  const dir = normalize(moveX, moveY);
+
+  if (horizontal || vertical || Math.abs(joystickVector.x) > 0.05 || Math.abs(joystickVector.y) > 0.05) {
     moveActorWithObstacles(player, dir.x * modifiers.playerSpeed * dt, dir.y * modifiers.playerSpeed * dt);
   }
 
@@ -565,8 +579,20 @@ function updateFloatingText(dt) {
 function drawField() {
   ctx.clearRect(0, 0, config.width, config.height);
 
-  ctx.fillStyle = "#cfb482";
+  const fieldGradient = ctx.createLinearGradient(0, 0, 0, config.height);
+  fieldGradient.addColorStop(0, "#d9bf8d");
+  fieldGradient.addColorStop(1, "#caa36f");
+  ctx.fillStyle = fieldGradient;
   ctx.fillRect(0, 0, config.width, config.height);
+
+  ctx.strokeStyle = "rgba(255, 247, 231, 0.08)";
+  ctx.lineWidth = 1;
+  for (let x = 40; x < config.width; x += 60) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, config.height);
+    ctx.stroke();
+  }
 
   ctx.strokeStyle = "rgba(69, 48, 27, 0.22)";
   ctx.lineWidth = 3;
@@ -667,35 +693,116 @@ function drawCharacters() {
   }
 
   if (state.phase === "player_rebuild") {
-    drawRunner(player.x, player.y, "#1d3557");
+    drawRunner(player.x, player.y, {
+      skin: "#e0ac69",
+      jersey: "#1d4e89",
+      shorts: "#0b2545",
+      accent: "#ffd166",
+    }, true);
   }
 
   if (state.phase === "cpu_rebuild") {
     const spot = defenderSpots[state.defenderSpotIndex];
     drawThrower(spot.x, spot.y, "#2d6a4f");
-    drawRunner(cpuRunner.x, cpuRunner.y, "#9d4edd");
+    drawRunner(cpuRunner.x, cpuRunner.y, {
+      skin: "#c68642",
+      jersey: "#9d4edd",
+      shorts: "#5a189a",
+      accent: "#f7b267",
+    }, false);
   }
 }
 
-function drawRunner(x, y, color) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 6;
+function drawRunner(x, y, palette, isPlayer) {
+  const actor = isPlayer ? player : cpuRunner;
+  const moving =
+    isPlayer
+      ? Math.abs(joystickVector.x) > 0.05 || Math.abs(joystickVector.y) > 0.05 || keys.size > 0
+      : state.phase === "cpu_rebuild";
+  const stride = moving ? Math.sin(state.animationTime * 10) * 10 : 0;
+  const armSwing = moving ? Math.cos(state.animationTime * 10) * 8 : 2;
+
+  ctx.save();
+  ctx.translate(x, y);
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(0, 36, 18, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = palette.skin;
+  ctx.lineWidth = 5;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.arc(x, y - 20, 12, 0, Math.PI * 2);
+  ctx.moveTo(0, -10);
+  ctx.lineTo(-14, 2 + armSwing);
+  ctx.moveTo(0, -10);
+  ctx.lineTo(14, 2 - armSwing);
   ctx.stroke();
+
+  ctx.fillStyle = palette.jersey;
   ctx.beginPath();
-  ctx.moveTo(x, y - 8);
-  ctx.lineTo(x, y + 24);
-  ctx.moveTo(x, y);
-  ctx.lineTo(x - 16, y + 12);
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + 16, y + 12);
-  ctx.moveTo(x, y + 24);
-  ctx.lineTo(x - 14, y + 44);
-  ctx.moveTo(x, y + 24);
-  ctx.lineTo(x + 14, y + 44);
+  ctx.roundRect(-11, -18, 22, 28, 8);
+  ctx.fill();
+
+  ctx.fillStyle = palette.accent;
+  ctx.beginPath();
+  ctx.roundRect(-9, -14, 18, 5, 4);
+  ctx.fill();
+
+  ctx.fillStyle = palette.shorts;
+  ctx.beginPath();
+  ctx.roundRect(-10, 8, 20, 12, 4);
+  ctx.fill();
+
+  ctx.strokeStyle = palette.skin;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(-4, 20);
+  ctx.lineTo(-10, 42 + stride);
+  ctx.moveTo(4, 20);
+  ctx.lineTo(10, 42 - stride);
   ctx.stroke();
+
+  ctx.strokeStyle = "#704214";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-12, 43 + stride);
+  ctx.lineTo(-4, 43 + stride);
+  ctx.moveTo(4, 43 - stride);
+  ctx.lineTo(12, 43 - stride);
+  ctx.stroke();
+
+  ctx.fillStyle = palette.skin;
+  ctx.beginPath();
+  ctx.arc(0, -30, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#2b2d42";
+  ctx.beginPath();
+  ctx.arc(-3, -31, 1.2, 0, Math.PI * 2);
+  ctx.arc(3, -31, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#7f5539";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, -28, 4, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#3a2d1b";
+  ctx.beginPath();
+  ctx.arc(0, -34, 11, Math.PI, Math.PI * 2);
+  ctx.fill();
+
+  if (actor.carryingStone) {
+    ctx.fillStyle = "#8c6b43";
+    ctx.beginPath();
+    ctx.arc(18, -4, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 function drawThrower(x, y, color) {
@@ -715,7 +822,10 @@ function drawProjectiles() {
   for (const projectile of state.projectiles) {
     ctx.beginPath();
     ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
-    ctx.fillStyle = projectile.owner === "cpu" ? "#bc4749" : "#2d6a4f";
+    const glow = ctx.createRadialGradient(projectile.x, projectile.y, 1, projectile.x, projectile.y, projectile.radius + 5);
+    glow.addColorStop(0, projectile.owner === "cpu" ? "#f28482" : "#7bd389");
+    glow.addColorStop(1, projectile.owner === "cpu" ? "#bc4749" : "#2d6a4f");
+    ctx.fillStyle = glow;
     ctx.fill();
   }
 }
@@ -753,6 +863,7 @@ function render() {
 }
 
 function update(dt) {
+  state.animationTime += dt;
   if (!state.started || state.phase === "game_over" || state.phase === "idle") {
     updateFloatingText(dt);
     render();
@@ -784,20 +895,20 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-canvas.addEventListener("mousemove", (event) => {
+function updatePointerPosition(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * config.width;
-  mouse.y = ((event.clientY - rect.top) / rect.height) * config.height;
-});
+  mouse.x = ((clientX - rect.left) / rect.width) * config.width;
+  mouse.y = ((clientY - rect.top) / rect.height) * config.height;
+}
 
-canvas.addEventListener("mousedown", () => {
+function handlePressStart() {
   mouse.down = true;
   if (state.phase === "player_attack" && distance(mouse, ballStart) < 28) {
     dragStart = { ...ballStart };
   }
-});
+}
 
-canvas.addEventListener("mouseup", () => {
+function handlePressEnd() {
   if (state.phase === "player_attack" && dragStart) {
     playerAttackThrow({ x: mouse.x, y: mouse.y });
   } else if (state.phase === "cpu_rebuild" && state.playerThrowCooldown <= 0) {
@@ -809,7 +920,128 @@ canvas.addEventListener("mouseup", () => {
   }
   mouse.down = false;
   dragStart = null;
+}
+
+function getCanvasPointFromTouch(touch) {
+  updatePointerPosition(touch.clientX, touch.clientY);
+  return { x: mouse.x, y: mouse.y };
+}
+
+function resetJoystick() {
+  joystickTouchId = null;
+  joystickVector = { x: 0, y: 0 };
+  if (ui.joystickKnob) {
+    ui.joystickKnob.style.transform = "translate(-50%, -50%)";
+  }
+}
+
+function updateJoystickFromTouch(touch) {
+  if (!ui.joystickBase || !ui.joystickKnob) {
+    return;
+  }
+
+  const rect = ui.joystickBase.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const dx = touch.clientX - centerX;
+  const dy = touch.clientY - centerY;
+  const maxRadius = rect.width * 0.34;
+  const length = Math.hypot(dx, dy);
+  const scale = length > maxRadius ? maxRadius / length : 1;
+  const limitedX = dx * scale;
+  const limitedY = dy * scale;
+
+  joystickVector = {
+    x: limitedX / maxRadius,
+    y: limitedY / maxRadius,
+  };
+
+  ui.joystickKnob.style.transform = `translate(calc(-50% + ${limitedX}px), calc(-50% + ${limitedY}px))`;
+}
+
+canvas.addEventListener("mousemove", (event) => {
+  updatePointerPosition(event.clientX, event.clientY);
 });
+
+canvas.addEventListener("mousedown", () => {
+  handlePressStart();
+});
+
+canvas.addEventListener("mouseup", () => {
+  handlePressEnd();
+});
+
+canvas.addEventListener("touchstart", (event) => {
+  const touch = event.touches[0];
+  if (!touch) {
+    return;
+  }
+  activeTouchId = touch.identifier;
+  getCanvasPointFromTouch(touch);
+  handlePressStart();
+  event.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchmove", (event) => {
+  const touch = Array.from(event.touches).find((item) => item.identifier === activeTouchId) || event.touches[0];
+  if (!touch) {
+    return;
+  }
+  getCanvasPointFromTouch(touch);
+  event.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchend", (event) => {
+  const touch = Array.from(event.changedTouches).find((item) => item.identifier === activeTouchId) || event.changedTouches[0];
+  if (touch) {
+    getCanvasPointFromTouch(touch);
+  }
+  handlePressEnd();
+  activeTouchId = null;
+  event.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchcancel", () => {
+  activeTouchId = null;
+  mouse.down = false;
+  dragStart = null;
+}, { passive: false });
+
+if (ui.joystickBase) {
+  ui.joystickBase.addEventListener("touchstart", (event) => {
+    if (state.phase !== "player_rebuild") {
+      return;
+    }
+    const touch = event.changedTouches[0];
+    if (!touch) {
+      return;
+    }
+    joystickTouchId = touch.identifier;
+    updateJoystickFromTouch(touch);
+    event.preventDefault();
+  }, { passive: false });
+
+  ui.joystickBase.addEventListener("touchmove", (event) => {
+    const touch = Array.from(event.touches).find((item) => item.identifier === joystickTouchId);
+    if (!touch) {
+      return;
+    }
+    updateJoystickFromTouch(touch);
+    event.preventDefault();
+  }, { passive: false });
+
+  const endJoystick = (event) => {
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === joystickTouchId);
+    if (!touch && joystickTouchId === null) {
+      return;
+    }
+    resetJoystick();
+    event.preventDefault();
+  };
+
+  ui.joystickBase.addEventListener("touchend", endJoystick, { passive: false });
+  ui.joystickBase.addEventListener("touchcancel", endJoystick, { passive: false });
+}
 
 window.addEventListener("keydown", (event) => {
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"].includes(event.key)) {
@@ -824,6 +1056,26 @@ window.addEventListener("keyup", (event) => {
 
 ui.startBtn.addEventListener("click", startMatch);
 ui.resetBtn.addEventListener("click", resetMatch);
+if (ui.fitScreenBtn) {
+  ui.fitScreenBtn.addEventListener("click", async () => {
+    const fitOn = !document.body.classList.contains("fit-screen");
+    document.body.classList.toggle("fit-screen", fitOn);
+    if (fitOn && document.documentElement.requestFullscreen && window.innerWidth < 900) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (error) {
+        // Fullscreen is optional; the fit-screen layout still improves mobile sizing.
+      }
+    } else if (!fitOn && document.fullscreenElement && document.exitFullscreen) {
+      try {
+        await document.exitFullscreen();
+      } catch (error) {
+        // Ignore fullscreen exit errors and keep the layout toggle.
+      }
+    }
+    updateUi();
+  });
+}
 ui.levelSelect.addEventListener("change", () => {
   state.level = Number(ui.levelSelect.value);
   updateLevelHint();
@@ -837,4 +1089,5 @@ ui.levelSelect.addEventListener("change", () => {
 
 createStackedStones();
 resetMatch();
+resetJoystick();
 requestAnimationFrame(loop);
