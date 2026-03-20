@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lagori: Seven Stones</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="layout">
+    <section class="panel hero">
+      <p class="eyebrow">Seven Stones / Lagori</p>
+      <h1>Rebuild the stack before the CPU knocks your team out.</h1>
+      <p class="summary">
+        This browser game adapts the traditional rules into a one-player format:
+        you attack, rebuild, dodge, and defend against a CPU team.
+      </p>
+
+      <div class="scoreboard">
+        <div>
+          <span class="label">You</span>
+          <strong id="playerScore">0</strong>
+        </div>
+        <div>
+          <span class="label">CPU</span>
+          <strong id="cpuScore">0</strong>
+        </div>
+        <div>
+          <span class="label">Goal</span>
+          <strong id="goalScore">3</strong>
+        </div>
+      </div>
+
+      <div class="level-card">
+        <label class="label" for="levelSelect">Level</label>
+        <div class="level-row">
+          <select id="levelSelect" aria-label="Choose game level">
+            <option value="1">Level 1</option>
+            <option value="2">Level 2</option>
+            <option value="3">Level 3</option>
+            <option value="4">Level 4</option>
+            <option value="5">Level 5</option>
+          </select>
+          <span id="levelHint">Normal speed</span>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <p class="status-label">Round status</p>
+        <h2 id="phaseTitle">Loading...</h2>
+        <p id="messageText">Preparing the field.</p>
+        <div class="meta">
+          <span id="turnBadge">Turn</span>
+          <span id="triesBadge">Throws</span>
+          <span id="livesBadge">Lives</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" type="button">Start Match</button>
+        <button id="resetBtn" type="button">Reset Match</button>
+      </div>
+    </section>
+
+    <section class="panel game-shell">
+      <canvas id="gameCanvas" width="980" height="620" aria-label="Lagori game field"></canvas>
+    </section>
+
+    <section class="panel rules">
+      <h2>How to Play</h2>
+      <ul>
+        <li>On your attack turn, drag from the ball and release to throw at the stone stack.</li>
+        <li>You get up to 3 throws to knock the stack down.</li>
+        <li>After a successful hit, move with <kbd>WASD</kbd> or arrow keys to collect stones and bring them back.</li>
+        <li>The round is won immediately when either side rebuilds all 7 stones into the pillar.</li>
+        <li>Higher levels add obstacles that can block throws, create ricochets, and give you cover to hide behind.</li>
+        <li>The CPU throws from fixed spots and can only knock you out by hitting below the waist.</li>
+        <li>When the CPU attacks, click to throw from your marked position and stop its runners before they rebuild.</li>
+      </ul>
+
+      <p class="footnote">
+        Rules adapted from
+        <a href="https://blog.compassion.com/seven-stones-a-traditional-game-for-children-in-india/" target="_blank" rel="noreferrer">
+          Compassion’s Seven Stones overview
+        </a>.
+      </p>
+    </section>
+  </main>
+
+  <script src="./script.js"></script>
+</body>
+</html>
